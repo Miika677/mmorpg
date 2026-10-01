@@ -29,6 +29,10 @@ async def login(data: dict):
         "username": username,
         "x": 100,
         "y": 100,
+        "chunk": {
+            "x" : 0,
+            "y" : 0
+        }
     }
 
     response = JSONResponse({"status" : "ok"}, status_code=200)
@@ -36,9 +40,48 @@ async def login(data: dict):
 
     return response
 
+def chunk_check(username : str, x : int, y : int):
+    player = players[username]
+    chunk = player["chunk"]
+
+    if player["x"] > 800:
+        player["x"] = 0
+        chunk["x"] += 1
+
+        print(str(chunk["x"]) + " " + username.capitalize())
+
+    if player["x"] < 0:
+        if chunk["x"] > 0:
+            player["x"] = 800
+            chunk["x"] -= 1
+
+        print(str(chunk["x"]) + " " + username.capitalize())
+
+    if player["y"] > 600:
+        player["y"] = 0
+        chunk["y"] += 1
+
+        print(str(chunk["y"]) + " " + username.capitalize())
+
+    if player["y"] < 0:
+        if chunk["y"] > 0:
+            player["y"] = 600
+            chunk["y"] -= 1
+
+        print(str(chunk["y"]) + " " + username.capitalize())
+    
+
 async def broadcast(message):
     for ws in connections.values():
         await ws.send_json(message)
+
+async def chunkcast(message, x_input,y_input):
+    for username, ws in connections.items():
+        if (
+        players[username]["chunk"]["x"] == x_input
+        and players[username]["chunk"]["y"] == y_input
+        ):
+            await ws.send_json(message)
 
 
 @app.websocket("/ws")
@@ -47,6 +90,7 @@ async def websocket(ws: WebSocket):
 
     print("username:", username)
 
+    #if player not logged in close connection
     if not username or username not in players:
         await ws.close()
         print("closed early")
@@ -54,41 +98,58 @@ async def websocket(ws: WebSocket):
 
     await ws.accept()
 
+    #add to WS dict
     connections[username] = ws
 
     try:
         # Send all existing players to the new player
         for player in players.values():
-            await ws.send_json({
+            await chunkcast({
                 "type": "login",
                 "username": player["username"],
                 "x": player["x"],
                 "y": player["y"],
-            })
+            }, players[username]["chunk"]["x"], players[username]["chunk"]["y"])
+
+            
 
         # Tell everyone else that this player joined
-        await broadcast({
+        await chunkcast({
             "type": "player_joined",
             "username": username,
             "x": players[username]["x"],
             "y": players[username]["y"],
-        })
+        }, players[username]["chunk"]["x"], players[username]["chunk"]["y"])
 
+        #RECEIVE ACTION
         while True:
             message = await ws.receive_json()
 
+            #movement
             if message["type"] == "move":
 
-                players[username]["x"] += message["dx"]
-                players[username]["y"] += message["dy"]
+                direction = message["direction"]
 
-                await broadcast({
+                if direction == "north":
+                    players[username]["y"] -= 5
+                elif direction == "south":
+                    players[username]["y"] += 5
+                elif direction == "west":
+                    players[username]["x"] -= 5
+                elif direction == "east":
+                    players[username]["x"] += 5
+
+                chunk_check(username, players[username]["chunk"]["x"], players[username]["chunk"]["y"])
+
+                await chunkcast({
                     "type": "player_position",
                     "username": username,
                     "x": players[username]["x"],
                     "y": players[username]["y"],
-                })
+                }, players[username]["chunk"]["x"], players[username]["chunk"]["y"])
 
+
+            #experimental dc thing
             if message["type"] == "dc":
                 for connection in list(connections):
                     if connection != username:

@@ -31,7 +31,7 @@ export function showGame() {
     const ctx = canvas.getContext("2d")!;
 
     canvas.width = 800;
-    canvas.height = 600;
+    canvas.height = 400;
 
 
     const players: Record<string, Player> = {};
@@ -71,7 +71,7 @@ export function showGame() {
             players[message.username] = {
                 username: message.username,
                 x: message.x,
-                y: message.y
+                y: message.y,
             };
 
             draw();
@@ -106,7 +106,7 @@ export function showGame() {
     }
 
 
-    function move(dx: number, dy: number) {
+    function move(direction : string) {
 
         if (socket.readyState !== WebSocket.OPEN) {
         return;
@@ -115,8 +115,7 @@ export function showGame() {
 
         socket.send(JSON.stringify({
             type: "move",
-            dx,
-            dy
+            direction
         }));
     }
 
@@ -126,19 +125,19 @@ export function showGame() {
         switch (event.key.toLowerCase()) {
 
             case "w":
-                move(0, -10);
+                move("north");
                 break;
 
             case "s":
-                move(0, 10);
+                move("south");
                 break;
 
             case "a":
-                move(-10, 0);
+                move("west");
                 break;
 
             case "d":
-                move(10, 0);
+                move("east");
                 break;
         }
     });
@@ -153,7 +152,7 @@ export function showGame() {
             canvas.height
         );
 
-
+        //draw screen
         for (const username in players) {
 
             const player = players[username];
@@ -170,7 +169,7 @@ export function showGame() {
 
             ctx.fillStyle = "black";
 
-            ctx.font = "14px Arial";
+            ctx.font = "12px Arial";
 
             ctx.fillText(
                 player.username,
